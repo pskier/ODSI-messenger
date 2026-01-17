@@ -11,7 +11,7 @@ class User(Base):
     hashed_password=Column(String, nullable=False)
     public_key=Column(Text, nullable=False)
     encrypted_private_key=Column(Text, nullable=False)
-    totp_secret=Column(String, nullable=False)
+    totp_secret=Column(String, nullable=True)
 
 class Message(Base):
     __tablename__ = "messages"

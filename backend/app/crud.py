@@ -10,7 +10,6 @@ def get_user_by_username(db: Session, username: str):
 def create_user(db: Session, user: schemas.UserCreate):
     hashed_password = auth.get_password_hash(user.password)
     db_user = models.User(username=user.username, hashed_password=hashed_password, public_key=user.public_key, encrypted_private_key=user.encrypted_private_key)
-    
     db.add(db_user)
     db.commit()
     db.refresh(db_user)

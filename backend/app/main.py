@@ -124,5 +124,4 @@ def get_my_messages(db: session.Session = Depends(get_db), current_user: schemas
 
     for msg in messages:
         msg.sender_username = msg.sender.username
-
     return messages

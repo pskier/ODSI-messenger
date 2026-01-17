@@ -6,6 +6,11 @@ import shutil
 import os
 import uuid
 from . import models, schemas, crud, auth, database
+import pyotp
+import qrcode
+import io
+from fastapi.responses import StreamingResponse
+
 
 models.Base.metadata.create_all(bind=database.engine)   
 app = FastAPI()
@@ -54,15 +59,32 @@ def register(user: schemas.UserCreate, db: session.Session = Depends(get_db)):
     return crud.create_user(db=db, user=user)
 
 @app.post("/token")
-def login_for_access_token(response:Response,form_data: OAuth2PasswordRequestForm = Depends(), db: session.Session = Depends(get_db)):
-    user = crud.get_user_by_username(db,form_data.username)
+def login_for_access_token(
+    response:Response,
+    form_data: OAuth2PasswordRequestForm = Depends(),
+    db: session.Session = Depends(get_db),
+    totp_code: str = Form(None)
+    ):
 
+    user = crud.get_user_by_username(db,form_data.username)
     if not user or not auth.verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Nieprawidłowa nazwa użytkownika lub hasło"
         )
-    
+
+    if user.totp_secret and not totp_code:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Wymagany kod 2FA"
+        )
+
+    if user.totp_secret and not pyotp.TOTP(user.totp_secret).verify(totp_code):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Nieprawidłowy kod 2FA"
+        )
+
     access_token=auth.create_access_token(data={"sub": user.username})
 
     response.set_cookie(
@@ -125,3 +147,25 @@ def get_my_messages(db: session.Session = Depends(get_db), current_user: schemas
     for msg in messages:
         msg.sender_username = msg.sender.username
     return messages
+
+@app.get("/2fa/setup")
+def setup_2fa(current_user: models.User = Depends(get_current_user), db: session.Session = Depends(get_db)):
+    if current_user.totp_secret:
+        raise HTTPException(status_code=400, detail="2FA jest już skonfigurowane")
+
+    totp_secret = pyotp.random_base32()
+    totp_uri = pyotp.totp.TOTP(totp_secret).provisioning_uri(name=current_user.username, issuer_name="ODSI Messenger")
+
+    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+    qr.add_data(totp_uri)
+    qr.make(fit=True)
+    img = qr.make_image(fill_color='black', back_color='white')
+
+    buf = io.BytesIO()
+    img.save(buf)
+    buf.seek(0)
+
+    current_user.totp_secret = totp_secret
+    db.commit()
+    
+    return StreamingResponse(buf, media_type="image/png")

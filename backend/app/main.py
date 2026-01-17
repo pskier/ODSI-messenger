@@ -19,7 +19,7 @@ def get_db():
     finally:
         db.close()
 
-async def get_current_user(token: str = Depends(oauth2_scheme), db: session.Session = Depends(get_db)):
+async def get_current_user(request: Request, db: session.Session = Depends(get_db)):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Brak autoryzacji (ciasteczko nieprawidłowe lub wygasło)",
@@ -80,8 +80,37 @@ def read_users_me(current_user: schemas.User = Depends(get_current_user)):
     return current_user
 
 @app.post("/messages", response_model=schemas.MessageResponse)
-def send_message(message: schemas.MessageCreate, current_user: schemas.User = Depends(get_current_user), db: session.Session = Depends(get_db)):
-    msg= crud.create_message(db=db, message=message, sender_id=current_user.id)
+def send_message(
+    recipient_username: str = Form(...),
+    encrypted_content: str = Form(...),
+    signature: str = Form(...),
+    file: UploadFile = File(None),
+    db: session.Session = Depends(get_db),
+    current_user: schemas.User = Depends(get_current_user)
+    ):
+
+    attachment_path = None
+
+    if file:
+        os.makedirs("uploads", exist_ok=True)
+
+        file_extension = os.path.splitext(file.filename)[1]
+        unique_filename = f"{uuid.uuid4()}{file_extension}"
+        file_location = f"uploads/{unique_filename}"
+
+        with open(file_location, "wb") as buffer:
+            shutil.copyfileobj(file.file, buffer)
+
+        attachment_path = file_location
+
+    msg = crud.create_message(
+        db=db,
+        recipient_username=recipient_username,
+        encrypted_content=encrypted_content,
+        signature=signature,
+        sender_id=current_user.id,
+        attachment_path=attachment_path
+    )
 
     if not msg:
         raise HTTPException(status_code=404, detail="Odbiorca nie istnieje")

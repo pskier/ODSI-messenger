@@ -16,16 +16,25 @@ def create_user(db: Session, user: schemas.UserCreate):
     db.refresh(db_user)
     return db_user
 
-def create_message(db: Session, message: schemas.MessageCreate, sender_id: int):
-    recepient = get_user_by_username(db, message.recipient_username)
+def create_message(
+    db: Session, 
+    recipient_username: str,
+    encrypted_content: str,
+    signature: str,
+    sender_id: int,
+    attachment_path: str = None
+    ):
+
+    recepient = get_user_by_username(db, recipient_username)
     if not recepient:
         return None
     
     db_message = models.Message(
         sender_id=sender_id,
         recipient_id=recepient.id,
-        encrypted_content=message.encrypted_content,
-        signature=message.signature
+        encrypted_content=encrypted_content,
+        signature=signature,
+        attachment_path=attachment_path
     )
 
     db.add(db_message)

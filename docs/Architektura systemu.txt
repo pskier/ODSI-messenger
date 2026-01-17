@@ -1,0 +1,30 @@
+Temat: Aplikacja do bezpiecznej wymiany szyfrowanych wiadomości z dowodem autentyczności.
+
+1. Architektura Systemu System zostanie zrealizowany w architekturze klient-serwer, z silnym naciskiem na zasadę End-to-End Encryption (E2EE). Serwer pełni rolę „ślepego przekaźnika” – przechowuje zaszyfrowane dane, nie posiadając kluczy do ich odczytu.
+Frontend (Klient): Aplikacja SPA (Single Page Application) wykonująca operacje kryptograficzne w przeglądarce użytkownika (Client-side encryption).
+Backend (API): REST API odpowiedzialne za uwierzytelnianie, przesył danych i walidację, bez dostępu do treści wiadomości.
+Baza Danych: Relacyjna baza danych przechowująca użytkowników (hash hasła) oraz zaszyfrowane bloby wiadomości.
+Proxy: Serwer NGINX zapewniający terminację SSL/TLS i serwowanie plików statycznych.
+
+2. Stos Technologiczny
+Backend: Python 3.11+ z frameworkiem FastAPI. Wybór podyktowany wbudowaną asynchronicznością, automatyczną walidacją typów (Pydantic) i łatwością tworzenia dokumentacji OpenAPI.
+Frontend: JavaScript (ES6+) z wykorzystaniem natywnego Web Crypto API do operacji kryptograficznych w przeglądarce.
+Baza Danych: PostgreSQL – robustny silnik SQL.
+Serwer WWW/Reverse Proxy: NGINX.
+Konteneryzacja: Docker oraz Docker Compose do orkiestracji usług.
+
+3. Zastosowane Algorytmy i Rozwiązania Kryptograficzne W projekcie wykorzystane zostaną standardy zgodne z rekomendacjami OWASP oraz NIST:
+Przechowywanie haseł: Algorytm Argon2id (odporny na ataki GPU/ASIC) z losową solą dla każdego użytkownika.
+Szyfrowanie wiadomości (Hybrydowe):
+Treść wiadomości i załączniki szyfrowane kluczem symetrycznym: AES-GCM (256-bit) – zapewnia poufność i integralność.
+Klucz symetryczny szyfrowany asymetrycznym kluczem publicznym odbiorcy: RSA-OAEP (min. 2048-bit) lub Elliptic Curve (ECIES).
+Podpis cyfrowy (Autentyczność): Nadawca podpisuje skrót (hash) wiadomości swoim kluczem prywatnym. Weryfikacja następuje kluczem publicznym nadawcy. Algorytm: ECDSA lub Ed25519.
+Uwierzytelnianie (2FA): Implementacja standardu TOTP (Time-based One-Time Password) zgodnego z RFC 6238 (współpraca z Google Authenticator).
+Komunikacja: Całość ruchu szyfrowana protokołem TLS 1.3 (wymuszone HTTPS przez NGINX).
+
+4. Kluczowe mechanizmy bezpieczeństwa
+Walidacja: Ścisła walidacja danych wejściowych (allow-list) przy użyciu modeli Pydantic.
+Ochrona przed Brute-Force: Rate Limiting na poziomie aplikacji (FastAPI) oraz NGINX dla endpointów logowania.
+Bezpieczeństwo sesji: Tokeny sesyjne (JWT) z flagami HttpOnly, Secure, SameSite=Strict.
+Ochrona załączników: Weryfikacja nagłówków plików (magic numbers) po stronie serwera przed zapisem, aby zapobiec uploadowi złośliwych skryptów.
+Nagłówki bezpieczeństwa: Wdrożenie CSP (Content Security Policy), HSTS, X-Content-Type-Options.

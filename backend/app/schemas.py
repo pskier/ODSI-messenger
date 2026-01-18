@@ -1,6 +1,7 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
 from typing import Optional
 from datetime import datetime
+import re
 
 class Token(BaseModel):
     access_token: str
@@ -16,6 +17,18 @@ class UserCreate(UserBase):
     password: str
     public_key: str
     encrypted_private_key: str
+    
+    @validator('password')
+    def validate_password(cls, v):
+        if len(v) < 8:
+            raise ValueError('Hasło musi mieć minimum 8 znaków')
+        if not re.search(r"[A-Z]", v):
+            raise ValueError('Hasło musi zawierać dużą literę')
+        if not re.search(r"\d", v):
+            raise ValueError('Hasło musi zawierać cyfrę')
+        if not re.search(r"[!@#$%^&*(),.?\":{}|<>]", v):
+            raise ValueError('Hasło musi zawierać znak specjalny')
+        return v
 
 class User(UserBase):
     id: int

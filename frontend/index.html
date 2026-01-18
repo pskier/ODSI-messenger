@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Secure Ops Messenger</title>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+    <div class="app-container">
+        
+        <aside class="sidebar" id="sidebar" style="display: none;">
+            <div class="logo-area">
+                <i class="fas fa-shield-alt"></i> ODSI SECURE
+            </div>
+            
+            <nav class="nav-links">
+                <div class="nav-item active" id="nav-inbox">
+                    <i class="fas fa-inbox"></i> Wiadomości
+                </div>
+                <div class="nav-item" id="nav-compose">
+                    <i class="fas fa-pen"></i> Napisz wiadomość
+                </div>
+                <div class="nav-item" id="nav-2fa">
+                    <i class="fas fa-qrcode"></i> Konfiguracja 2FA
+                </div>
+            </nav>
+
+            <div class="user-profile">
+                <div>
+                    <small style="color: #94a3b8;">Zalogowany:</small><br>
+                    <span id="username-display">User</span>
+                </div>
+                <button id="logout-btn" class="secondary-btn" style="width: auto; padding: 5px 10px;">
+                    <i class="fas fa-sign-out-alt"></i>
+                </button>
+            </div>
+        </aside>
+
+        <main class="main-content">
+
+            <div id="auth-section" class="auth-container">
+                <div style="text-align: center; margin-bottom: 20px;">
+                    <h1 style="color: var(--accent-color);">SECURE OPS</h1>
+                    <p style="color: var(--text-secondary);">System bezpiecznej komunikacji</p>
+                </div>
+
+                <div class="tabs">
+                    <button class="tab-btn active" onclick="showTab('login')">Logowanie</button>
+                    <button class="tab-btn" onclick="showTab('register')">Rejestracja</button>
+                </div>
+
+                <div id="login-tab">
+                    <input type="text" id="login-username" placeholder="Użytkownik">
+                    <input type="password" id="login-password" placeholder="Hasło">
+                    <input type="text" id="login-totp" placeholder="Kod 2FA (000 000)" maxlength="6" style="letter-spacing: 2px;">
+                    <button id="login-btn" class="primary-btn">ZALOGUJ SIĘ</button>
+                </div>
+
+                <div id="register-tab" style="display: none;">
+                    <input type="text" id="reg-username" placeholder="Wybierz login">
+                    <input type="password" id="reg-password" placeholder="Ustaw silne hasło">
+                    <button id="register-btn" class="primary-btn">UTWÓRZ KONTO</button>
+                </div>
+                
+                <p id="auth-message" class="message"></p>
+            </div>
+
+            <div id="dashboard-section" style="display: none; height: 100%;">
+
+                <div id="view-inbox" class="view-panel">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-inbox"></i> Skrzynka odbiorcza</h3>
+                        <button id="refresh-msgs-btn" class="secondary-btn" style="width: auto;">
+                            <i class="fas fa-sync"></i> Odśwież
+                        </button>
+                    </div>
+                    <div class="panel-body">
+                        <ul id="messages-list">
+                            </ul>
+                    </div>
+                </div>
+
+                <div id="view-compose" class="view-panel" style="display: none;">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-pen"></i> Nowa wiadomość</h3>
+                    </div>
+                    <div class="panel-body" style="max-width: 600px; margin: 0 auto;">
+                        <form id="message-form">
+                            <input type="text" id="msg-recipient" placeholder="Odbiorca (Login)" required>
+                            <textarea id="msg-content" placeholder="Treść zaszyfrowana..." rows="6" required></textarea>
+                            <input type="text" id="msg-signature" placeholder="Twój podpis cyfrowy" value="SecureSignature" required>
+                            
+                            <label for="msg-file" class="file-label">
+                                <i class="fas fa-paperclip"></i> Dołącz plik
+                            </label>
+                            <input type="file" id="msg-file">
+                            
+                            <button type="submit" class="primary-btn">
+                                <i class="fas fa-paper-plane"></i> WYŚLIJ WIADOMOŚĆ
+                            </button>
+                        </form>
+                        <p id="msg-status" class="message"></p>
+                    </div>
+                </div>
+
+                <div id="view-2fa" class="view-panel" style="display: none;">
+                    <div class="panel-header">
+                        <h3><i class="fas fa-shield-alt"></i> Konfiguracja 2FA</h3>
+                    </div>
+                    <div class="panel-body" style="text-align: center; max-width: 500px; margin: 0 auto;">
+                        <p style="color: #94a3b8; margin-bottom: 20px;">
+                            Zwiększ bezpieczeństwo swojego konta używając Google Authenticator. Kliknij przycisk poniżej, aby wygenerować unikalny kod.
+                        </p>
+                        
+                        <button id="setup-2fa-btn" class="action-btn" style="max-width: 250px; margin-bottom: 20px;">
+                            <i class="fas fa-qrcode"></i> Generuj Kod QR
+                        </button>
+
+                        <div id="qr-container" style="display: none; background: white; padding: 20px; border-radius: 12px; display: inline-block;">
+                            <img id="qr-image" src="" alt="QR" style="max-width: 200px;">
+                            <p style="color: black; margin-top: 10px; font-size: 0.9em;">Zeskanuj ten kod w aplikacji</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+
+        </main>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/forge/1.3.1/forge.min.js"></script>
+    <script src="app.js"></script>
+    
+    <script>
+        function showTab(tabName) {
+            document.getElementById('login-tab').style.display = tabName === 'login' ? 'block' : 'none';
+            document.getElementById('register-tab').style.display = tabName === 'register' ? 'block' : 'none';
+            const btns = document.querySelectorAll('.tab-btn');
+            btns.forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

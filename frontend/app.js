@@ -71,7 +71,7 @@ document.getElementById("register-btn").addEventListener("click", async () => {
 
     btn.disabled = true;
     btn.innerText = "Generowanie kluczy...";
-    showMessage("auth-message", "Trwa generowanie kluczy RSA...");
+    showMessage("auth-message", "Trwa generowanie bezpiecznych kluczy RSA...");
 
     try {
         const keypair = await new Promise((resolve, reject) => {
@@ -99,12 +99,25 @@ document.getElementById("register-btn").addEventListener("click", async () => {
             showTab('login');
         } else {
             const errorData = await response.json();
-            showMessage("auth-message", `Błąd: ${errorData.detail}`, true);
+            console.log("Błąd API:", errorData);
+
+            let errorMsg = "Wystąpił błąd.";
+            
+            if (Array.isArray(errorData.detail)) {
+                errorMsg = errorData.detail.map(err => {
+                    return err.msg.replace("Value error, ", ""); 
+                }).join(", "); 
+            } 
+            else if (errorData.detail) {
+                errorMsg = errorData.detail;
+            }
+
+            showMessage("auth-message", `Błąd: ${errorMsg}`, true);
         }
 
     } catch (error) {
         console.error(error);
-        showMessage("auth-message", `Błąd: ${error.message}`, true);
+        showMessage("auth-message", `Błąd połączenia: ${error.message}`, true);
     } finally {
         btn.disabled = false;
         btn.innerText = "UTWÓRZ KONTO";
@@ -215,29 +228,47 @@ async function loadMessages() {
             messages.forEach(msg => {
                 const li = document.createElement("li");
                 li.className = "msg-item";
+                
+                if (!msg.is_read) {
+                    li.style.borderLeftColor = "#ef4444"; 
+                    li.style.backgroundColor = "#2d3748"; 
+                }
 
                 let attachmentHtml = "";
                 if (msg.attachment_path) {
                     const fileName = msg.attachment_path.split("/").pop();
                     attachmentHtml = `
                         <div style="margin-top: 10px;">
-                            <a href="/${msg.attachment_path}" target="_blank" download class="secondary-btn" style="text-decoration: none; font-size: 0.85em; padding: 6px 12px; display: inline-block; color: white; border-color: #555;">
+                            <a href="/${msg.attachment_path}" target="_blank" download class="secondary-btn" style="text-decoration: none; font-size: 0.85em; padding: 6px 12px; display: inline-block; color: white;">
                                 <i class="fas fa-download"></i> Pobierz: ${fileName}
                             </a>
                         </div>
                     `;
                 }
-                
+                const isVerified = msg.signature ? true : false; 
+                const verifyBadge = isVerified 
+                    ? `<span style="color:#10b981; font-size:0.8em; margin-left:10px;" title="Podpis cyfrowy poprawny"><i class="fas fa-check-circle"></i> Zweryfikowano</span>` 
+                    : `<span style="color:#ef4444; font-size:0.8em; margin-left:10px;"><i class="fas fa-exclamation-triangle"></i> Brak podpisu</span>`;
+
                 li.innerHTML = `
                     <div class="msg-meta">
-                        <span><i class="fas fa-user"></i> ${msg.sender_username}</span>
+                        <span><i class="fas fa-user"></i> ${msg.sender_username} ${verifyBadge}</span>
                         <span>${new Date(msg.created_at).toLocaleString()}</span>
                     </div>
                     <div style="margin-top: 5px; font-size: 1rem;">
-                        ${msg.encrypted_content}
-                        ${attachmentHtml}
+                        ${msg.encrypted_content} ${attachmentHtml}
                     </div>
-                    <small style="color: #64748b; display:block; margin-top:8px;">Podpis: ${msg.signature}</small>
+                    
+                    <div style="margin-top: 15px; display: flex; gap: 10px; justify-content: flex-end;">
+                        ${!msg.is_read ? `
+                        <button onclick="markAsRead(${msg.id})" class="secondary-btn" style="width:auto; font-size:0.8em; padding: 5px 10px;">
+                            <i class="fas fa-eye"></i> Oznacz jako przeczytane
+                        </button>` : '<span style="color:#666; font-size:0.8em; align-self:center;">Przeczytano</span>'}
+                        
+                        <button onclick="deleteMessage(${msg.id})" class="secondary-btn" style="width:auto; font-size:0.8em; padding: 5px 10px; border-color: #ef4444; color: #ef4444;">
+                            <i class="fas fa-trash"></i> Usuń
+                        </button>
+                    </div>
                 `;
                 messagesList.appendChild(li);
             });
@@ -246,6 +277,27 @@ async function loadMessages() {
         console.error("Błąd pobierania", err);
     }
 }
+
+globalThis.deleteMessage = async (id) => {
+    if(!confirm("Czy na pewno usunąć tę wiadomość?")) return;
+    try {
+        const res = await fetch(`${API_URL}/messages/${id}`, { method: 'DELETE' });
+        if(res.ok) {
+            loadMessages();
+        } else {
+            alert("Błąd usuwania");
+        }
+    } catch(e) { console.error(e); }
+};
+
+globalThis.markAsRead = async (id) => {
+    try {
+        const res = await fetch(`${API_URL}/messages/${id}/read`, { method: 'POST' });
+        if(res.ok) {
+            loadMessages();
+        }
+    } catch(e) { console.error(e); }
+};
 
 document.getElementById("refresh-msgs-btn").addEventListener("click", loadMessages);
 

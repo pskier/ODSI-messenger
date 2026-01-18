@@ -51,5 +51,7 @@ class MessageResponse(BaseModel):
     attachment_path: Optional[str] = None
     created_at: datetime    
 
+    is_read: bool
+
     class Config:
         from_attributes = True

@@ -60,7 +60,7 @@ async def get_current_user(request: Request, db: session.Session = Depends(get_d
 # Endpointy API i logika aplikacji
 @app.post("/register", response_model=schemas.User)
 @limiter.limit("5/minute")
-def register(user: schemas.UserCreate, db: session.Session = Depends(get_db)):
+def register(request:Request, user: schemas.UserCreate, db: session.Session = Depends(get_db)):
     db_user = crud.get_user_by_username(db, username=user.username)
     if db_user:
         raise HTTPException(status_code=400, detail="Nazwa użytkownika jest już zajęta")
@@ -195,9 +195,9 @@ def delete_message(
     msg = db.query(models.Message).filter(models.Message.id == message_id).first()
     if not msg:
         raise HTTPException(status_code=404, detail="Nie znaleziono wiadomości")
-    
-    if msg.recipient_username != current_user.username and msg.sender_username != current_user.username:
-         raise HTTPException(status_code=403, detail="Brak uprawnień")
+
+    if msg.recipient_id != current_user.id and msg.sender_id != current_user.id:
+         raise HTTPException(status_code=403, detail="Brak uprawnień do usunięcia tej wiadomości")
 
     db.delete(msg)
     db.commit()
@@ -210,8 +210,9 @@ def mark_message_as_read(
     current_user: models.User = Depends(get_current_user)
 ):
     msg = db.query(models.Message).filter(models.Message.id == message_id).first()
-    if not msg or msg.recipient_username != current_user.username:
-        raise HTTPException(status_code=404, detail="Nie znaleziono wiadomości")
+    
+    if not msg or msg.recipient_id != current_user.id:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wiadomości lub brak dostępu")
     
     msg.is_read = True
     db.commit()

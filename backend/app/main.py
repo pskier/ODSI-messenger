@@ -10,7 +10,14 @@ import pyotp
 import qrcode
 import io
 from fastapi.responses import StreamingResponse
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
+limiter = Limiter(key_func=get_remote_address)
+app = FastAPI()
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 models.Base.metadata.create_all(bind=database.engine)   
 app = FastAPI()
@@ -52,6 +59,7 @@ async def get_current_user(request: Request, db: session.Session = Depends(get_d
 
 # Endpointy API i logika aplikacji
 @app.post("/register", response_model=schemas.User)
+@limiter.limit("5/minute")
 def register(user: schemas.UserCreate, db: session.Session = Depends(get_db)):
     db_user = crud.get_user_by_username(db, username=user.username)
     if db_user:
@@ -59,19 +67,27 @@ def register(user: schemas.UserCreate, db: session.Session = Depends(get_db)):
     return crud.create_user(db=db, user=user)
 
 @app.post("/token")
+@limiter.limit("5/minute")
 def login_for_access_token(
+    request: Request,
     response:Response,
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: session.Session = Depends(get_db),
     totp_code: str = Form(None)
     ):
 
-    user = crud.get_user_by_username(db,form_data.username)
-    if not user or not auth.verify_password(form_data.password, user.hashed_password):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Nieprawidłowa nazwa użytkownika lub hasło"
-        )
+    invalid_credentials_exc = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="Nieprawidłowe dane logowania",
+    )
+
+    user = crud.get_user_by_username(db, form_data.username)
+    if not user:
+        auth.verify_password("fake", "$2b$12$EixZaYVK1fsbw1ZfbX3OXePaWxwKc.60rScphF.17yDAHJ8.s.jOi")
+        raise invalid_credentials_exc
+    
+    if not auth.verify_password(form_data.password, user.hashed_password):
+        raise invalid_credentials_exc
 
     if user.totp_secret and not totp_code:
         raise HTTPException(
@@ -169,3 +185,34 @@ def setup_2fa(current_user: models.User = Depends(get_current_user), db: session
     db.commit()
     
     return StreamingResponse(buf, media_type="image/png")
+
+@app.delete("/messages/{message_id}")
+def delete_message(
+    message_id: int, 
+    db: session.Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    msg = db.query(models.Message).filter(models.Message.id == message_id).first()
+    if not msg:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wiadomości")
+    
+    if msg.recipient_username != current_user.username and msg.sender_username != current_user.username:
+         raise HTTPException(status_code=403, detail="Brak uprawnień")
+
+    db.delete(msg)
+    db.commit()
+    return {"message": "Usunięto wiadomość"}
+
+@app.post("/messages/{message_id}/read")
+def mark_message_as_read(
+    message_id: int, 
+    db: session.Session = Depends(get_db), 
+    current_user: models.User = Depends(get_current_user)
+):
+    msg = db.query(models.Message).filter(models.Message.id == message_id).first()
+    if not msg or msg.recipient_username != current_user.username:
+        raise HTTPException(status_code=404, detail="Nie znaleziono wiadomości")
+    
+    msg.is_read = True
+    db.commit()
+    return {"message": "Oznaczono jako przeczytane"}

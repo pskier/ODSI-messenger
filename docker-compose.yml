@@ -9,6 +9,12 @@ services:
       - POSTGRES_USER=postgres
       - POSTGRES_PASSWORD=postgres
       - POSTGRES_DB=messenger
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
     networks:
       - secure-network
 
@@ -25,8 +31,9 @@ services:
       - "8000:8000"
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/messenger
-    depends_on:
-      - db
+    depends_on:  
+      db:
+        condition: service_healthy
     networks:
       - secure-network
 

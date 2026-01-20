@@ -23,7 +23,6 @@ class Message(Base):
     sender_id=Column(Integer, ForeignKey("users.id"), nullable=False)
     recipient_id=Column(Integer, ForeignKey("users.id"), nullable=False)
 
-    # Treść zaszyfrowanej wiadomości AES
     encrypted_content=Column(Text, nullable=False)
     signature=Column(String, nullable=False)
     attachment_path=Column(String, nullable=True)

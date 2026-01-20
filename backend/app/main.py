@@ -217,3 +217,21 @@ def mark_message_as_read(
     msg.is_read = True
     db.commit()
     return {"message": "Oznaczono jako przeczytane"}
+
+@app.get("/users/{username}/public_key")
+def get_user_public_key(
+    username: str, 
+    db: session.Session = Depends(get_db),
+    current_user: models.User = Depends(get_current_user)
+):
+    user = crud.get_user_by_username(db, username=username)
+    if not user:
+        raise HTTPException(status_code=404, detail="Użytkownik nie istnieje")
+    
+    return {"username": user.username, "public_key": user.public_key}
+
+@app.get("/users/me/private_key")
+def get_my_encrypted_private_key(
+    current_user: models.User = Depends(get_current_user)
+):
+    return {"encrypted_private_key": current_user.encrypted_private_key}
